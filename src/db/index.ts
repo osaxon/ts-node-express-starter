@@ -12,6 +12,4 @@ export const closeDatabaseConnection = async () => await client.end();
 export const initMigrations = async () => {
   await migrate(db, { migrationsFolder: './src/db/migrations' });
   console.log('migrations complete 👾');
-  await closeDatabaseConnection();
-  console.log('connection to db closed 👋');
 };

@@ -53,40 +53,48 @@ export const getUsers = async (_req: Request, res: Response) => {
 export const userLogin = async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
-  const result = await db
-    .select(userWithPasswordSchema)
-    .from(user)
-    .where(eq(user.email, email));
+  try {
+    const result = await db
+      .select(userWithPasswordSchema)
+      .from(user)
+      .where(eq(user.email, email));
 
-  if (result.length !== 1) {
-    throw new Error('User not found');
+    if (result.length !== 1) {
+      throw new Error('User not found');
+    }
+
+    const dbUser = result[0];
+
+    if (!dbUser.password || !dbUser?.id) {
+      res.status(HttpStatus.NOT_FOUND).send();
+      return;
+    }
+
+    const isPasswordCorrect = await bcrypt.compare(password, dbUser.password);
+
+    if (!isPasswordCorrect) {
+      res.status(HttpStatus.UNAUTHORIZED).send();
+      return;
+    }
+
+    const { password: _password, ...userWithoutPassword } = dbUser;
+
+    req.session.user = userWithoutPassword;
+
+    const fetchedUsers = await getUserByEmail(email);
+
+    if (!fetchedUsers || fetchedUsers.length !== 1) {
+      res.status(HttpStatus.NOT_FOUND).send();
+      return;
+    }
+
+    const fetchedUser = fetchedUsers[0];
+
+    res.status(HttpStatus.OK).json({ user: fetchedUser });
+  } catch (error) {
+    console.log(error, '<---- the error');
+    res.status(500).send(error);
   }
-
-  const dbUser = result[0];
-  if (!dbUser.password || !dbUser?.id) {
-    res.status(HttpStatus.NOT_FOUND).send();
-    return;
-  }
-
-  const isPasswordCorrect = await bcrypt.compare(password, dbUser.password);
-
-  if (!isPasswordCorrect) {
-    res.status(HttpStatus.UNAUTHORIZED).send();
-    return;
-  }
-
-  const { password: _password, ...userWithoutPassword } = dbUser;
-  req.session.user = userWithoutPassword;
-
-  const fetchedUsers = await getUserByEmail(email);
-  if (!fetchedUsers || fetchedUsers.length !== 1) {
-    res.status(HttpStatus.NOT_FOUND).send();
-    return;
-  }
-
-  const fetchedUser = fetchedUsers[0];
-
-  res.status(HttpStatus.OK).json({ user: fetchedUser });
 };
 
 export const userLogout = async (req: Request, res: Response) => {
